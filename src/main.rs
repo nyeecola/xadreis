@@ -2,6 +2,7 @@ use std::fmt;
 use bitfield::bitfield;
 use num_enum::TryFromPrimitive;
 use num_enum::IntoPrimitive;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -28,7 +29,7 @@ bitfield!{
     struct Square(u8);
     impl Debug;
     get_piece, set_piece: 3, 0;
-    get_owner, set_owner: 5, 3;
+    get_owner, set_owner: 5, 4;
 }
 
 impl fmt::Display for Square {
@@ -84,7 +85,43 @@ fn main() {
         board: [[Square(0); 8]; 8],
     };
 
-    game_state.set_piece_at(0, 3, PieceType::KNIGHT, Player::BLACK);
+    let mut section = 0;
+    let mut cur_row: usize = 0;
+    let mut cur_col: usize = 0;
+    for c in UnicodeSegmentation::graphemes(FEN_INPUT, true) {
+        // section 0: the pieces
+        match section {
+            0 => {
+                if c == "/" {
+                    cur_row += 1;
+                    cur_col = 0;
+                    continue;
+                }
+                match c {
+                    "1"|"2"|"3"|"4"|"5"|"6"|"7"|"8" => cur_col += c.parse::<usize>().unwrap() - 1,
+                    "k" => game_state.set_piece_at(cur_row, cur_col, PieceType::KING, Player::BLACK),
+                    "K" => game_state.set_piece_at(cur_row, cur_col, PieceType::KING, Player::WHITE),
+                    "b" => game_state.set_piece_at(cur_row, cur_col, PieceType::BISHOP, Player::BLACK),
+                    "B" => game_state.set_piece_at(cur_row, cur_col, PieceType::BISHOP, Player::WHITE),
+                    "r" => game_state.set_piece_at(cur_row, cur_col, PieceType::ROOK, Player::BLACK),
+                    "R" => game_state.set_piece_at(cur_row, cur_col, PieceType::ROOK, Player::BLACK),
+                    "n" => game_state.set_piece_at(cur_row, cur_col, PieceType::KNIGHT, Player::WHITE),
+                    "N" => game_state.set_piece_at(cur_row, cur_col, PieceType::KNIGHT, Player::WHITE),
+                    "q" => game_state.set_piece_at(cur_row, cur_col, PieceType::QUEEN, Player::BLACK),
+                    "Q" => game_state.set_piece_at(cur_row, cur_col, PieceType::QUEEN, Player::WHITE),
+                    "p" => game_state.set_piece_at(cur_row, cur_col, PieceType::PAWN, Player::BLACK),
+                    "P" => game_state.set_piece_at(cur_row, cur_col, PieceType::PAWN, Player::WHITE),
+                    " " => { section += 1; continue; },
+                    _ => panic!("Unexpected symbol in FEN input"),
+                }
+                cur_col += 1;
+            },
+            1 => {
+
+            },
+            _ => {},
+        }
+    }
 
     println!("{}", game_state);
 }
