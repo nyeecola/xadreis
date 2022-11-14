@@ -5,6 +5,8 @@ use num_enum::IntoPrimitive;
 use unicode_segmentation::UnicodeSegmentation;
 use regex::Regex;
 
+pub mod gui;
+
 #[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 enum PieceType {
@@ -77,8 +79,8 @@ impl fmt::Display for GameState {
 impl GameState {
     fn set_piece_at(&mut self, row: usize, col: usize, piece: PieceType, owner: Player) -> () {
         assert_ne!(owner, Player::None);
-        self.board[row][col].set_piece(piece as u8);
-        self.board[row][col].set_owner(owner as u8);
+        self.board[row][col].set_piece(piece.into());
+        self.board[row][col].set_owner(owner.into());
     } 
 }
 
@@ -176,4 +178,6 @@ fn main() {
     game_state.fullmove_counter = splits[5].parse::<u16>().unwrap();
  
     println!("{}", game_state);
+
+    gui::gui();
 }
