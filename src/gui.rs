@@ -104,9 +104,9 @@ impl eframe::App for XadreisGUI {
                             let x_pos = i as f32 * tile_size + board_rect.min.x;
                             let y_pos = j as f32 * tile_size + board_rect.min.y;
                             let color = if (i + j) % 2 == 0 {
-                                Color32::from_rgb(210, 210, 155)
+                                Color32::from_rgb(205, 180, 145)
                             } else {
-                                Color32::from_rgb(110, 85, 45)
+                                Color32::from_rgb(135, 105, 65)
                             };
 
                             let paint_rect =
@@ -136,11 +136,7 @@ impl eframe::App for XadreisGUI {
                                 let x_pos = j as f32 * tile_size + board_rect.min.x;
                                 let y_pos = i as f32 * tile_size + board_rect.min.y;
 
-                                let paint_rect =
-                                    egui::Rect {
-                                        min: egui::pos2(x_pos, y_pos),
-                                        max: egui::pos2(x_pos + tile_size,
-                                                        y_pos + tile_size) };
+                                let mut offset = egui::vec2(tile_size * 0.2, tile_size * 0.2);
 
                                 let img = match Player::try_from(self.game_state.as_ref().unwrap().board[i][j].get_owner()).unwrap() {
                                     Player::Black => {
@@ -150,7 +146,7 @@ impl eframe::App for XadreisGUI {
                                             PieceType::Bishop => &self.bbishop,
                                             PieceType::Queen => &self.bqueen,
                                             PieceType::King => &self.bking,
-                                            PieceType::Pawn => &self.bpawn,
+                                            PieceType::Pawn => { offset.x *= 1.2; &self.bpawn },
                                             PieceType::None => { continue; },
                                         }
                                     },
@@ -161,12 +157,19 @@ impl eframe::App for XadreisGUI {
                                             PieceType::Bishop => &self.wbishop,
                                             PieceType::Queen => &self.wqueen,
                                             PieceType::King => &self.wking,
-                                            PieceType::Pawn => &self.wpawn,
+                                            PieceType::Pawn => { offset.x *= 1.2; &self.wpawn },
                                             PieceType::None => { continue; },
                                         }
                                     },
                                     _ => { continue; }
                                 };
+
+                                let paint_rect =
+                                    egui::Rect {
+                                        min: egui::pos2(x_pos, y_pos) + offset,
+                                        max: egui::pos2(x_pos + tile_size,
+                                                        y_pos + tile_size) - offset
+                                    };
 
                                 let final_img = egui::widgets::Image::new(img.texture_id(ctx),
                                                                           img.size_vec2());
