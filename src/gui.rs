@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use crate::fen_to_game_state;
 use crate::PieceType;
 use crate::GameState;
 use crate::Player;
@@ -11,7 +12,7 @@ use eframe::egui;
 use eframe::*;
 use egui::containers::Frame;
 
-pub fn gui(game_state: GameState) {
+pub fn gui(game_state: GameState, fen: String) {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
@@ -20,7 +21,7 @@ pub fn gui(game_state: GameState) {
     eframe::run_native(
         "Xadreis",
         options,
-        Box::new(|_cc| Box::new(XadreisGUI::from_game_state(game_state))),
+        Box::new(|_cc| Box::new(XadreisGUI::from_game_state(game_state, fen))),
     );
 }
 
@@ -40,12 +41,14 @@ struct XadreisGUI {
     bpawn: RetainedImage,
 
     game_state: Option<GameState>,
+    fen: String,
 }
 
 impl XadreisGUI {
-    fn from_game_state(game_state: GameState) -> Self {
+    fn from_game_state(game_state: GameState, fen: String) -> Self {
         let mut s = Self::default();
         s.game_state = Some(game_state);
+        s.fen = fen;
 
         return s;
     }
@@ -69,6 +72,7 @@ impl Default for XadreisGUI {
             bpawn: RetainedImage::from_image_bytes("bpawn", include_bytes!("../assets/pieces/pawn.png")).unwrap(),
         
             game_state: None,
+            fen: "".to_string(),
         }
     }
 }
@@ -81,6 +85,10 @@ impl eframe::App for XadreisGUI {
             .default_size(vec2(512.0, 512.0))
             .vscroll(false)
             .show(ctx, |ui| {
+                let response = ui.add(egui::TextEdit::singleline(&mut self.fen).desired_width(f32::INFINITY).hint_text("Paste FEN here..."));
+                if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    self.game_state = Some(fen_to_game_state(self.fen.to_string()));
+                }
                 Frame::canvas(ui.style()).show(ui, |ui| {
                     ui.ctx().request_repaint();
 
@@ -97,7 +105,7 @@ impl eframe::App for XadreisGUI {
                             let color = if (i + j) % 2 == 0 {
                                 Color32::from_rgb(210, 210, 155)
                             } else {
-                                Color32::from_rgb(100, 55, 40)
+                                Color32::from_rgb(110, 85, 45)
                             };
 
                             let paint_rect =

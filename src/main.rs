@@ -98,7 +98,8 @@ bitfield!{
 
 const FEN_INPUT: &str = "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50";
 
-fn main() {
+// TODO: return an option or error result
+pub fn fen_to_game_state(fen: String) -> GameState {
     println!("{}", FEN_INPUT);
 
     let mut game_state = GameState {
@@ -111,7 +112,7 @@ fn main() {
     };
 
     let separator = Regex::new(r"([ ]+)").expect("Invalid regex");
-    let splits: Vec<_> = separator.split(FEN_INPUT).into_iter().collect();
+    let splits: Vec<_> = separator.split(&fen).into_iter().collect();
     assert!(splits.len() >= 6);
 
     // section 0: pieces on the board
@@ -181,5 +182,9 @@ fn main() {
  
     println!("{}", game_state);
 
-    gui::gui(game_state);
+    game_state
+}
+
+fn main() {
+    gui::gui(fen_to_game_state(FEN_INPUT.to_string()), FEN_INPUT.to_string());
 }
