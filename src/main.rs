@@ -7,6 +7,8 @@ use regex::Regex;
 
 pub mod gui;
 
+// TODO: make public API like GameState more apparent
+
 #[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 enum PieceType {
@@ -55,7 +57,7 @@ impl fmt::Display for Square {
 }
 
 #[derive(Debug)]
-struct GameState {
+pub struct GameState {
     board: [[Square; 8]; 8],
     player_to_move: Player,
     castling_rights: CastlingRights,
@@ -179,5 +181,5 @@ fn main() {
  
     println!("{}", game_state);
 
-    gui::gui();
+    gui::gui(game_state);
 }
