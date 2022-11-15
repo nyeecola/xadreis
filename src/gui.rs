@@ -87,6 +87,7 @@ impl eframe::App for XadreisGUI {
             .show(ctx, |ui| {
                 let response = ui.add(egui::TextEdit::singleline(&mut self.fen).desired_width(f32::INFINITY).hint_text("Paste FEN here..."));
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                    self.fen = self.fen.trim().to_string();
                     self.game_state = Some(fen_to_game_state(self.fen.to_string()));
                 }
                 Frame::canvas(ui.style()).show(ui, |ui| {

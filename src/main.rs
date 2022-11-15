@@ -7,7 +7,7 @@ use regex::Regex;
 
 pub mod gui;
 
-// TODO: make public API like GameState more apparent
+// TODO: make public API like GameState and fen_to_game_state more apparent
 
 #[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
@@ -99,8 +99,10 @@ bitfield!{
 const FEN_INPUT: &str = "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50";
 
 // TODO: return an option or error result
-pub fn fen_to_game_state(fen: String) -> GameState {
+pub fn fen_to_game_state(raw_fen: String) -> GameState {
     println!("{}", FEN_INPUT);
+
+    let fen = raw_fen.trim();
 
     let mut game_state = GameState {
         board: [[Square(0); 8]; 8],
