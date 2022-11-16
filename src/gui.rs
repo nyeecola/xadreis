@@ -12,16 +12,17 @@ use eframe::egui;
 use eframe::*;
 use egui::containers::Frame;
 
-pub fn gui(game_state: GameState, fen: String) {
+pub fn gui(game_state: Box<GameState>, fen: String) {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
     let mut options = eframe::NativeOptions::default();
     options.initial_window_size = Some(emath::Vec2{x:800.0,y:800.0});
+    let app = XadreisGUI::from_game_state(game_state, fen);
     eframe::run_native(
         "Xadreis",
         options,
-        Box::new(|_cc| Box::new(XadreisGUI::from_game_state(game_state, fen))),
+        Box::new(|_cc| Box::new(app)),
     );
 }
 
@@ -45,9 +46,9 @@ struct XadreisGUI {
 }
 
 impl XadreisGUI {
-    fn from_game_state(game_state: GameState, fen: String) -> Self {
+    fn from_game_state(game_state: Box<GameState>, fen: String) -> Self {
         let mut s = Self::default();
-        s.game_state = Some(game_state);
+        s.game_state = Some(*game_state);
         s.fen = fen;
 
         return s;

@@ -1,0 +1,6 @@
+- implement legal move generation
+- test engine move generation with perft https://www.chessprogramming.org/Perft_Results
+- implement playing through the GUI
+- implement basic "random" engine
+- ???
+- play against engines listed here https://www.madchess.net/

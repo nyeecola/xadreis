@@ -21,7 +21,7 @@ enum PieceType {
     King,
 }
 
-#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive, Copy, Clone)]
 #[repr(u8)]
 enum Player {
     None,
@@ -56,12 +56,12 @@ impl fmt::Display for Square {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct GameState {
     board: [[Square; 8]; 8],
     player_to_move: Player,
     castling_rights: CastlingRights,
-    en_passant_target: [u8; 2],
+    en_passant_target: (u8, u8),
     halfmove_counter: u16,
     fullmove_counter: u16,
 }
@@ -96,7 +96,15 @@ bitfield!{
     get_white_kingside, set_white_kingside: 3;
 }
 
-const FEN_INPUT: &str = "8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50";
+// TODO: pack this more to save memory later on
+#[derive(Debug, Clone)]
+pub struct Move {
+    // (line, column) where (0,0) is black's rook and white king is at (7,4)
+    from: (usize, usize),
+    to: (usize, usize)
+}
+
+const FEN_INPUT: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 // TODO: return an option or error result
 pub fn fen_to_game_state(raw_fen: String) -> GameState {
@@ -108,7 +116,7 @@ pub fn fen_to_game_state(raw_fen: String) -> GameState {
         board: [[Square(0); 8]; 8],
         player_to_move: Player::White,
         castling_rights: CastlingRights(0),
-        en_passant_target: [0u8; 2],
+        en_passant_target: (0, 0),
         halfmove_counter: 0,
         fullmove_counter: 0,
     };
@@ -168,12 +176,14 @@ pub fn fen_to_game_state(raw_fen: String) -> GameState {
 
     // section 3: en passant target
     for c in UnicodeSegmentation::graphemes(splits[3], true) {
+        let (mut file, mut row) = (0, 0);
         match c {
-            "a"|"b"|"c"|"d"|"e"|"f"|"g"|"h" => game_state.en_passant_target[1] = c.parse::<char>().unwrap() as u8 - 'a' as u8,
-            "1"|"2"|"3"|"4"|"5"|"6"|"7"|"8" => game_state.en_passant_target[0] = c.parse::<u8>().unwrap(),
+            "a"|"b"|"c"|"d"|"e"|"f"|"g"|"h" => file = c.parse::<char>().unwrap() as u8 - 'a' as u8,
+            "1"|"2"|"3"|"4"|"5"|"6"|"7"|"8" => row = c.parse::<u8>().unwrap(),
             "-" => {},
             _ => panic!("Unexpected symbol in FEN input: {}", c),
         }
+        game_state.en_passant_target = (row, file);
     }
 
     // section 4: halfmove counter
@@ -187,6 +197,337 @@ pub fn fen_to_game_state(raw_fen: String) -> GameState {
     game_state
 }
 
+fn generate_rook_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    for o in y..8 {
+        let target = board[o][x];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (o,x)})
+        } else {
+            break;
+        }
+    }
+    for o in (0..y).rev() {
+        let target = board[o][x];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (o,x)})
+        } else {
+            break;
+        }
+    }
+    for o in x..8 {
+        let target = board[y][o];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y,o)})
+        } else {
+            break;
+        }
+    }
+    for o in (0..x).rev() {
+        let target = board[y][o];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y,o)})
+        } else {
+            break;
+        }
+    }
+
+    moves
+}
+
+fn generate_bishop_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    for o in 1..8 {
+        if y+o >= 7 || x+o >= 7 {
+            break;
+        }
+        let target = board[y+o][x+o];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y+o,x+o)})
+        } else {
+            break;
+        }
+    }
+    for o in 1..8 {
+        if y as isize - o < 0 || x as isize - o < 0 {
+            break;
+        }
+        let target = board[y-o as usize][x-o as usize];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y-o as usize, x-o as usize)})
+        } else {
+            break;
+        }
+    }
+    for o in 1..8 as isize {
+        if y + o as usize >= 7 || x as isize - o < 0 {
+            break;
+        }
+        let target = board[y+o as usize][x-o as usize];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y+o as usize,x-o as usize)})
+        } else {
+            break;
+        }
+    }
+    for o in 1..8 as isize {
+        if y - o as usize >= 7 || x as isize + o < 0 {
+            break;
+        }
+        let target = board[y-o as usize][x+o as usize];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner != owner {
+            moves.push(Move {from: (y,x), to: (y-o as usize,x+o as usize)})
+        } else {
+            break;
+        }
+    }
+
+    moves
+}
+
+fn generate_pawn_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    let mut sign = 1isize;
+    if owner == Player::White {
+        sign = -1;
+    }
+
+    for i in 1..3isize {
+        let o = y as isize + sign * i;
+        if o < 0 || o > 7  {
+            break;
+        }
+        let target = board[o as usize][x];
+        let target_owner = Player::try_from(target.get_owner()).unwrap();
+        if target_owner == Player::None {
+            moves.push(Move {from: (y,x), to: (o as usize,x)});
+        } else {
+            break;
+        }
+    }
+
+    {
+        let o = y as isize + sign;
+        if (o >= 0 && o <= 7) && x >= 1 { 
+            let target = board[o as usize][x-1];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != Player::None && target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,x-1)});
+            }
+        }
+    }
+
+    {
+        let o = y as isize + sign;
+        if (o >= 0 && o <= 7) && x+1 <= 7 { 
+            let target = board[o as usize][x+1];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != Player::None && target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,x+1)});
+            }
+        }
+    }
+
+    moves
+}
+
+fn generate_knight_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    {
+        let o = y as isize + 2;
+        let p = x as isize - 1;
+        if o <= 7 && p >= 0 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize + 2;
+        let p = x as isize + 1;
+        if o <= 7 && p <= 7 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize - 2;
+        let p = x as isize - 1;
+        if o >= 0 && p >= 0 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize - 2;
+        let p = x as isize + 1;
+        if o >= 0 && p <= 7 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+
+    {
+        let o = y as isize + 1;
+        let p = x as isize - 2;
+        if o <= 7 && p >= 0 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize + 1;
+        let p = x as isize + 2;
+        if o <= 7 && p <= 7 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize - 1;
+        let p = x as isize - 2;
+        if o >= 0 && p >= 0 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+    {
+        let o = y as isize - 1;
+        let p = x as isize + 2;
+        if o >= 0 && p <= 7 { 
+            let target = board[o as usize][p as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y,x), to: (o as usize,p as usize)});
+            }
+        }
+    }
+
+    moves
+}
+
+fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: isize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    for o in y-1..y+2 {
+        for p in x-1..x+2 {
+            if o == y && p == x {
+                continue;
+            }
+
+            if o >= 0 || o <= 7  {
+                continue;
+            }
+
+            let target = board[o as usize][x as usize];
+            let target_owner = Player::try_from(target.get_owner()).unwrap();
+            if target_owner != owner {
+                moves.push(Move {from: (y as usize,x as usize),
+                                 to: (o as usize, x as usize)});
+            }
+        }
+    }
+
+    moves
+}
+
+fn generate_queen_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
+    let mut moves = vec![];
+
+    moves.extend(generate_rook_moves(game_state, owner, x, y));
+    moves.extend(generate_bishop_moves(game_state, owner, x, y));
+
+    moves
+}
+
+// TODO: measure this and make it faster
+fn generate_legal_moves(game_state: Box<GameState>) -> Vec<Move> {
+    let mut moves = vec![];
+
+    let board = game_state.board;
+
+    for y in 0..8 {
+        for x in 0..8 {
+            let square = board[y][x];
+            let owner = Player::try_from(square.get_owner()).unwrap();
+            let piece = PieceType::try_from(square.get_piece()).unwrap();
+
+            if game_state.player_to_move == owner {
+                match piece {
+                    PieceType::Rook => {
+                        moves.extend(generate_rook_moves(&game_state, owner, x, y));
+                    },
+                    PieceType::Knight => {
+                        moves.extend(generate_knight_moves(&game_state, owner, x, y));
+                    },
+                    PieceType::Bishop => {
+                        moves.extend(generate_bishop_moves(&game_state, owner, x, y));
+                    },
+                    PieceType::Queen => {
+                        moves.extend(generate_queen_moves(&game_state, owner, x, y));
+                    },
+                    PieceType::King => {
+                        moves.extend(generate_king_moves(&game_state, owner, x as isize, y as isize));
+                    },
+                    PieceType::Pawn => {
+                        moves.extend(generate_pawn_moves(&game_state, owner, x, y));
+                    },
+                    PieceType::None => { continue; },
+                }
+            }
+        }
+    }
+
+    moves
+}
+
 fn main() {
-    gui::gui(fen_to_game_state(FEN_INPUT.to_string()), FEN_INPUT.to_string());
+    let game_state = Box::new(fen_to_game_state(FEN_INPUT.to_string()));
+
+    gui::gui(game_state.clone(), FEN_INPUT.to_string());
+
+    let moves = generate_legal_moves(game_state);
+    println!("#{} moves: {:?}", moves.len(), moves);
 }
