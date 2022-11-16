@@ -1,4 +1,6 @@
-- implement legal move generation
+- implement en passant
+- implement castling
+- implement is_in_check()
 - test engine move generation with perft https://www.chessprogramming.org/Perft_Results
 - implement playing through the GUI
 - implement basic "random" engine
