@@ -1,8 +1,3 @@
-- if a move would put the player in check, remove it from the legal moves list
-  - `make_move` is implemented, use it alongside `is_in_check` and `generate_attacks`
-  	to check if the move would put the player in check and, if so, rollback the move,
-  	perhaps this can be easily accomplished by just passing game_state as a copy when
-  	making the move temporarily.
 - fix bug where pawns can always move twice, instead of only when it is it's first move
 - test engine move generation with perft https://www.chessprogramming.org/Perft_Results
   - implement perft(N) for N > 1
@@ -10,3 +5,4 @@
 - implement basic "random" engine
 - ???
 - play against engines listed here https://www.madchess.net/
+- optimize stuff

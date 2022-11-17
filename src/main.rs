@@ -80,7 +80,8 @@ impl fmt::Display for GameState {
 
 impl GameState {
     fn set_piece_at(&mut self, row: usize, col: usize, piece: PieceType, owner: Player) -> () {
-        assert_ne!(owner, Player::None);
+        assert!((owner == Player::None && piece == PieceType::None) ||
+                (owner != Player::None && piece != PieceType::None));
         self.board[row][col].set_piece(piece.into());
         self.board[row][col].set_owner(owner.into());
     } 
@@ -96,7 +97,7 @@ bitfield!{
     get_white_kingside, set_white_kingside: 3;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MoveSideEffect {
     // (line, column) where (0,0) is black's rook and white king is at (7,4)
     from: (usize, usize),
@@ -104,7 +105,7 @@ pub struct MoveSideEffect {
 }
 
 // TODO: pack this more to save memory later on
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Move {
     // (line, column) where (0,0) is black's rook and white king is at (7,4)
     from: (usize, usize),
@@ -371,6 +372,12 @@ fn generate_pawn_moves(game_state: &Box<GameState>, player: Player, x: usize, y:
         if o < 0 || o > 7  {
             break;
         }
+        if i == 2 {
+            if (player == Player::White && y != 6) ||
+               (player == Player::Black && y != 1) {
+                break;
+            }
+        }
         let target = board[o as usize][x];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner == Player::None {
@@ -594,13 +601,21 @@ fn generate_queen_moves(game_state: &Box<GameState>, owner: Player, x: usize, y:
     generate_queen_attacks(game_state, owner, x, y)
 }
 
+fn swap_player_turn(game_state: &mut Box<GameState>) {
+    match game_state.player_to_move {
+        Player::Black => { game_state.player_to_move = Player::White; },
+        Player::White => { game_state.player_to_move = Player::Black; },
+        Player::None => { panic!("Invalid player_to_move"); }
+    };
+}
+
 fn make_move(game_state: &mut Box<GameState>, mv: Move) {
     {
         let piece = PieceType::try_from(game_state.board[mv.from.0][mv.from.1].get_piece()).unwrap();
         let owner = Player::try_from(game_state.board[mv.from.0][mv.from.1].get_owner()).unwrap();
 
         game_state.set_piece_at(mv.to.0, mv.to.1, piece, owner);
-        game_state.set_piece_at(mv.from.0, mv.from.1, PieceType::None, owner);
+        game_state.set_piece_at(mv.from.0, mv.from.1, PieceType::None, Player::None);
     }
 
     if mv.side_effect.is_some() {
@@ -610,19 +625,21 @@ fn make_move(game_state: &mut Box<GameState>, mv: Move) {
         let owner = Player::try_from(game_state.board[smv.from.0][smv.from.1].get_owner()).unwrap();
 
         game_state.set_piece_at(smv.to.0, smv.to.1, piece, owner);
-        game_state.set_piece_at(smv.from.0, smv.from.1, PieceType::None, owner);
+        game_state.set_piece_at(smv.from.0, smv.from.1, PieceType::None, Player::None);
     }
+
+    swap_player_turn(game_state);
 }
 
-fn is_in_check(game_state: &Box<GameState>, owner: Player, moves: Vec<Move>) -> bool {
+fn is_in_check(game_state: &Box<GameState>, player: Player, moves: Vec<Move>) -> bool {
     let board = game_state.board;
 
     for mv in moves {
-        let square = board[mv.to.1][mv.to.0];
+        let square = board[mv.to.0][mv.to.1];
         let target_owner = Player::try_from(square.get_owner()).unwrap();
         let target_piece = PieceType::try_from(square.get_piece()).unwrap();
 
-        if target_owner == owner && target_piece == PieceType::King {
+        if target_owner == player && target_piece == PieceType::King {
             return true;
         }
     }
@@ -671,6 +688,7 @@ fn generate_attacks(game_state: &Box<GameState>, player: Player) -> Vec<Move> {
 } 
 
 // TODO: measure this and make it faster
+// TODO: optimize this
 fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     let mut moves = vec![];
 
@@ -717,7 +735,19 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
         }
     }
 
-    moves
+    let mut final_moves = vec![];
+
+    // remove moves that would leave the player in check
+    for mv in &moves {
+        let mut tmp_game_state = game_state.clone();
+        make_move(&mut tmp_game_state, *mv);
+        let tmp_attacks = generate_attacks(&tmp_game_state, tmp_game_state.player_to_move);
+        if !is_in_check(&tmp_game_state, game_state.player_to_move, tmp_attacks) {
+            final_moves.push(*mv);
+        }
+    }
+
+    final_moves
 }
 
 // TODO: implement this for n > 1
@@ -734,8 +764,4 @@ fn main() {
     let game_state = Box::new(fen_to_game_state(FEN_INPUT.to_string()));
 
     gui::gui(game_state.clone(), FEN_INPUT.to_string());
-
-    let moves = generate_legal_moves(&game_state);
-
-    println!("#{} moves: {:?}", moves.len(), moves);
 }
