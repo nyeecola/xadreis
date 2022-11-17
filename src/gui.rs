@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use crate::perft;
+use egui_extras::Size;
+use egui_extras::TableBuilder;
 use crate::fen_to_game_state;
 use crate::PieceType;
 use crate::GameState;
@@ -17,7 +20,7 @@ pub fn gui(game_state: Box<GameState>, fen: String) {
     tracing_subscriber::fmt::init();
 
     let mut options = eframe::NativeOptions::default();
-    options.initial_window_size = Some(emath::Vec2{x:800.0,y:800.0});
+    options.initial_window_size = Some(emath::Vec2{x:1200.0,y:800.0});
     let app = XadreisGUI::from_game_state(game_state, fen);
     eframe::run_native(
         "Xadreis",
@@ -41,14 +44,14 @@ struct XadreisGUI {
     bknight: RetainedImage,
     bpawn: RetainedImage,
 
-    game_state: Option<GameState>,
+    game_state: Option<Box<GameState>>,
     fen: String,
 }
 
 impl XadreisGUI {
     fn from_game_state(game_state: Box<GameState>, fen: String) -> Self {
         let mut s = Self::default();
-        s.game_state = Some(*game_state);
+        s.game_state = Some(game_state);
         s.fen = fen;
 
         return s;
@@ -89,7 +92,7 @@ impl eframe::App for XadreisGUI {
                 let response = ui.add(egui::TextEdit::singleline(&mut self.fen).desired_width(f32::INFINITY).hint_text("Paste FEN here..."));
                 if response.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
                     self.fen = self.fen.trim().to_string();
-                    self.game_state = Some(fen_to_game_state(self.fen.to_string()));
+                    self.game_state = Some(Box::new(fen_to_game_state(self.fen.to_string())));
                 }
                 Frame::canvas(ui.style()).show(ui, |ui| {
                     ui.ctx().request_repaint();
@@ -181,6 +184,34 @@ impl eframe::App for XadreisGUI {
                     }
                 });
             });
+        Window::new("Perft")
+            .open(&mut open)
+            .show(ctx, |top_ui| {
+                let table = TableBuilder::new(top_ui)
+                    .striped(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Size::initial(60.0).at_least(40.0))
+                    .column(Size::initial(60.0).at_least(40.0))
+                    .column(Size::remainder().at_least(60.0))
+                    .resizable(true);
+
+                table
+                    .header(30.0, |mut header| {
+                        header.col(|hui| {hui.heading("FEN");});
+                        header.col(|hui| {hui.heading("Perft(0)");});
+                        header.col(|hui| {hui.heading("Perft(1)");});
+                    })
+                    .body(|mut body| {
+                        body.row(20.0, |mut row| {
+                            row.col(|rui| { rui.label("AAAAAAAAAAAAAAA"); });
+                            // TODO:
+                            //  - understand this & + as_ref() stuff
+                            //  - stop unwrap()'ing here, we could very easily crash
+                            row.col(|rui| { rui.label(perft(&self.game_state.as_ref().unwrap(), 0).to_string()); });
+                            row.col(|rui| { rui.label("??"); });
+                        });
+                    });
+                });
     }
 }
 

@@ -692,6 +692,11 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     moves
 }
 
+// TODO: implement this for n > 0
+pub fn perft(game_state: &Box<GameState>, n: usize) -> usize {
+    generate_legal_moves(game_state).len()
+}
+
 fn main() {
     let game_state = Box::new(fen_to_game_state(FEN_INPUT.to_string()));
 

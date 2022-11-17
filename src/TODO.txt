@@ -1,4 +1,5 @@
 - test engine move generation with perft https://www.chessprogramming.org/Perft_Results
+  - implement perft(N) for N > 0
 - implement playing through the GUI
 - implement basic "random" engine
 - ???
