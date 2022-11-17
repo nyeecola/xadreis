@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use crate::perft_moves;
 use crate::perft;
 use egui_extras::Size;
 use egui_extras::TableBuilder;
@@ -46,6 +47,8 @@ struct XadreisGUI {
 
     game_state: Option<Box<GameState>>,
     fen: String,
+
+    perft: Option<usize>,
 }
 
 impl XadreisGUI {
@@ -77,6 +80,8 @@ impl Default for XadreisGUI {
         
             game_state: None,
             fen: "".to_string(),
+
+            perft: None,
         }
     }
 }
@@ -187,6 +192,14 @@ impl eframe::App for XadreisGUI {
         Window::new("Perft")
             .open(&mut open)
             .show(ctx, |top_ui| {
+                if top_ui.button("Run perft() for current board position").clicked() {
+                    // TODO:
+                    //  - understand this & + as_ref() stuff
+                    //  - stop unwrap()'ing here, we could very easily crash
+                    println!("Perft(0) moves: {:?}", perft_moves(&self.game_state.as_ref().unwrap(), 0));
+                    self.perft = Some(perft(&self.game_state.as_ref().unwrap(), 0));
+                }
+
                 let table = TableBuilder::new(top_ui)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -198,16 +211,19 @@ impl eframe::App for XadreisGUI {
                 table
                     .header(30.0, |mut header| {
                         header.col(|hui| {hui.heading("FEN");});
-                        header.col(|hui| {hui.heading("Perft(0)");});
                         header.col(|hui| {hui.heading("Perft(1)");});
+                        header.col(|hui| {hui.heading("Perft(2)");});
                     })
                     .body(|mut body| {
                         body.row(20.0, |mut row| {
                             row.col(|rui| { rui.label("AAAAAAAAAAAAAAA"); });
                             // TODO:
-                            //  - understand this & + as_ref() stuff
                             //  - stop unwrap()'ing here, we could very easily crash
-                            row.col(|rui| { rui.label(perft(&self.game_state.as_ref().unwrap(), 0).to_string()); });
+                            if self.perft.is_some() {
+                                row.col(|rui| { rui.label(self.perft.unwrap().to_string()); });
+                            } else {
+                                row.col(|rui| { rui.label("??"); });
+                            }
                             row.col(|rui| { rui.label("??"); });
                         });
                     });

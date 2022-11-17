@@ -210,12 +210,13 @@ fn generate_rook_attacks(game_state: &Box<GameState>, owner: Player, x: usize, y
 
     let board = game_state.board;
 
-    for o in y..8 {
+    for o in y+1..8 {
         let target = board[o][x];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (o,x), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
@@ -224,16 +225,18 @@ fn generate_rook_attacks(game_state: &Box<GameState>, owner: Player, x: usize, y
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (o,x), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
-    for o in x..8 {
+    for o in x+1..8 {
         let target = board[y][o];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y,o), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
@@ -242,7 +245,8 @@ fn generate_rook_attacks(game_state: &Box<GameState>, owner: Player, x: usize, y
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y,o), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
@@ -506,15 +510,19 @@ fn generate_king_attacks(game_state: &Box<GameState>, owner: Player, x: isize, y
                 continue;
             }
 
-            if o >= 0 || o <= 7  {
+            if o < 0 || o > 7  {
                 continue;
             }
 
-            let target = board[o as usize][x as usize];
+            if p < 0 || p > 7  {
+                continue;
+            }
+
+            let target = board[o as usize][p as usize];
             let target_owner = Player::try_from(target.get_owner()).unwrap();
             if target_owner != owner {
                 moves.push(Move {from: (y as usize,x as usize),
-                                 to: (o as usize, x as usize),
+                                 to: (o as usize, p as usize),
                                  side_effect: None});
             }
         }
@@ -584,6 +592,26 @@ fn generate_queen_attacks(game_state: &Box<GameState>, owner: Player, x: usize, 
 
 fn generate_queen_moves(game_state: &Box<GameState>, owner: Player, x: usize, y: usize) -> Vec<Move> {
     generate_queen_attacks(game_state, owner, x, y)
+}
+
+fn make_move(game_state: &mut Box<GameState>, mv: Move) {
+    {
+        let piece = PieceType::try_from(game_state.board[mv.from.0][mv.from.1].get_piece()).unwrap();
+        let owner = Player::try_from(game_state.board[mv.from.0][mv.from.1].get_owner()).unwrap();
+
+        game_state.set_piece_at(mv.to.0, mv.to.1, piece, owner);
+        game_state.set_piece_at(mv.from.0, mv.from.1, PieceType::None, owner);
+    }
+
+    if mv.side_effect.is_some() {
+        let smv = mv.side_effect.unwrap();
+
+        let piece = PieceType::try_from(game_state.board[smv.from.0][smv.from.1].get_piece()).unwrap();
+        let owner = Player::try_from(game_state.board[smv.from.0][smv.from.1].get_owner()).unwrap();
+
+        game_state.set_piece_at(smv.to.0, smv.to.1, piece, owner);
+        game_state.set_piece_at(smv.from.0, smv.from.1, PieceType::None, owner);
+    }
 }
 
 fn is_in_check(game_state: &Box<GameState>, owner: Player, moves: Vec<Move>) -> bool {
@@ -692,9 +720,14 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     moves
 }
 
-// TODO: implement this for n > 0
+// TODO: implement this for n > 1
 pub fn perft(game_state: &Box<GameState>, n: usize) -> usize {
     generate_legal_moves(game_state).len()
+}
+
+// TODO: implement this for n > 1
+pub fn perft_moves(game_state: &Box<GameState>, n: usize) -> Vec<Move> {
+    generate_legal_moves(game_state)
 }
 
 fn main() {
