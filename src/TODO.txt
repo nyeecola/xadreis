@@ -1,4 +1,3 @@
-- implement promotion
 - fix bugs revealed by perft()
   - en_passant might be broken
 - optimize stuff
