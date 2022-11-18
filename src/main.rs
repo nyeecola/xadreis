@@ -9,7 +9,7 @@ pub mod gui;
 
 // TODO: make public API like GameState and fen_to_game_state more apparent
 
-#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive, Copy, Clone)]
 #[repr(u8)]
 enum PieceType {
     None,
@@ -19,6 +19,20 @@ enum PieceType {
     Bishop,
     Queen,
     King,
+}
+
+impl PieceType {
+    fn iterator() -> impl Iterator<Item = PieceType> {
+        [PieceType::Rook, PieceType::Knight, PieceType::Bishop, PieceType::Queen].iter().copied()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+#[repr(u8)]
+enum MoveSideEffectType {
+    MovePiece,
+    RemovePiece,
+    AddPiece,
 }
 
 #[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive, Copy, Clone)]
@@ -99,9 +113,11 @@ bitfield!{
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoveSideEffect {
+    effect_type: MoveSideEffectType,
+    new_piece_type: Option<PieceType>, // only used for `AddPiece`
     // (line, column) where (0,0) is black's rook and white king is at (7,4)
-    from: (usize, usize),
-    to: (usize, usize),
+    from: Option<(usize, usize)>,
+    to: Option<(usize, usize)>,
 }
 
 // TODO: pack this more to save memory later on
@@ -385,7 +401,18 @@ fn generate_pawn_moves(game_state: &Box<GameState>, player: Player, x: usize, y:
         let target = board[o as usize][x];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner == Player::None {
-            moves.push(Move {from: (y,x), to: (o as usize, x), side_effect: None});
+            let mut mv = Move {from: (y,x), to: (o as usize, x), side_effect: None};
+            if i == 1 {
+                if (player == Player::White && y == 0) ||
+                   (player == Player::Black && y == 7) {
+                    for pt in PieceType::iterator() {
+                        mv.side_effect = Some(MoveSideEffect{effect_type: MoveSideEffectType::AddPiece,
+                                                             new_piece_type: Some(pt), from: None,
+                                                             to: Some((o as usize, x))});
+                    }
+                }
+            };
+            moves.push(mv);
         } else {
             break;
         }
@@ -394,13 +421,16 @@ fn generate_pawn_moves(game_state: &Box<GameState>, player: Player, x: usize, y:
     if game_state.en_passant_target.is_some() {
         let target = game_state.en_passant_target.unwrap();
 
-        let t_y = target.0 as usize;
-        let t_x = target.1 as usize;
+        let t_y = target.0 as isize;
+        let t_x = target.1 as isize;
 
-        if t_y == y && (t_x-1 == x || t_x+1 == x) {
-            let o = t_y as isize + sign;
+        if t_y == y as isize && (t_x-1 == x as isize || t_x+1 == x as isize) {
+            let o = t_y + sign;
             if o >= 0 && o <= 7  {
-                moves.push(Move {from: (y,x), to: (o as usize, t_x), side_effect: None});
+                moves.push(Move {from: (y,x), to: (o as usize, t_x as usize),
+                                 side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::RemovePiece,
+                                                                  new_piece_type: None,
+                                                                  from: Some((t_y as usize, t_x as usize)), to: None})});
             }
         }
     }
@@ -556,7 +586,7 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                     if PieceType::try_from(board[0][5].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[0][6].get_piece()).unwrap() == PieceType::None {
                         moves.push(Move {from: (0,4), to: (0,6),
-                                         side_effect: Some(MoveSideEffect{from: (0,7), to: (0,5)})});
+                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,7)), to: Some((0,5))})});
                     }
                 }
                 if game_state.castling_rights.get_black_queenside() {
@@ -564,7 +594,7 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                         PieceType::try_from(board[0][2].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[0][1].get_piece()).unwrap() == PieceType::None {
                         moves.push(Move {from: (0,4), to: (0,2),
-                                         side_effect: Some(MoveSideEffect{from: (0,0), to: (0,3)})});
+                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,0)), to: Some((0,3))})});
                     }
                 }
             },
@@ -573,7 +603,7 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                     if PieceType::try_from(board[7][5].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[7][6].get_piece()).unwrap() == PieceType::None {
                         moves.push(Move {from: (7,4), to: (7,6),
-                                         side_effect: Some(MoveSideEffect{from: (7,7), to: (7,5)})});
+                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,5))})});
                     }
                 }
                 if game_state.castling_rights.get_black_queenside() {
@@ -581,7 +611,7 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                         PieceType::try_from(board[7][2].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[7][1].get_piece()).unwrap() == PieceType::None {
                         moves.push(Move {from: (7,4), to: (7,2),
-                                         side_effect: Some(MoveSideEffect{from: (7,7), to: (7,3)})});
+                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,3))})});
                     }
                 }
             },
@@ -625,11 +655,31 @@ fn make_move(game_state: &mut Box<GameState>, mv: Move) {
     if mv.side_effect.is_some() {
         let smv = mv.side_effect.unwrap();
 
-        let piece = PieceType::try_from(game_state.board[smv.from.0][smv.from.1].get_piece()).unwrap();
-        let owner = Player::try_from(game_state.board[smv.from.0][smv.from.1].get_owner()).unwrap();
+        match smv.effect_type {
+            MoveSideEffectType::MovePiece => {
+                let from = smv.from.unwrap();
+                let to = smv.to.unwrap();
 
-        game_state.set_piece_at(smv.to.0, smv.to.1, piece, owner);
-        game_state.set_piece_at(smv.from.0, smv.from.1, PieceType::None, Player::None);
+                let piece = PieceType::try_from(game_state.board[from.0][from.1].get_piece()).unwrap();
+                let owner = Player::try_from(game_state.board[from.0][from.1].get_owner()).unwrap();
+
+                game_state.set_piece_at(to.0, to.1, piece, owner);
+                game_state.set_piece_at(from.0, from.1, PieceType::None, Player::None);
+            },
+            MoveSideEffectType::AddPiece => {
+                let to = smv.to.unwrap();
+                let new_piece = smv.new_piece_type.unwrap();
+                let owner = Player::try_from(game_state.board[mv.from.0][mv.from.1].get_owner()).unwrap();
+
+                game_state.set_piece_at(to.0, to.1, new_piece, owner);
+            }
+            MoveSideEffectType::RemovePiece => {
+                let from = smv.from.unwrap();
+
+                game_state.set_piece_at(from.0, from.1, PieceType::None, Player::None);
+            }
+        };
+
     }
 
     swap_player_turn(game_state);

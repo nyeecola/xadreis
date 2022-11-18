@@ -196,7 +196,7 @@ impl eframe::App for XadreisGUI {
                     // TODO:
                     //  - understand this & + as_ref() stuff
                     //  - stop unwrap()'ing here, we could very easily crash
-                    //println!("Perft(1) moves: {:?}", generate_legal_moves(&self.game_state.as_ref().unwrap()));
+                    println!("Perft(1) moves: {:?}", generate_legal_moves(&self.game_state.as_ref().unwrap()));
                     let mut perft_results = [-1isize; 8];
                     Some(perft(&mut perft_results, &self.game_state.as_ref().unwrap(), 3));
                     self.perft = Some(perft_results);
