@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use crate::generate_legal_moves;
 use crate::perft;
 use egui_extras::Size;
 use egui_extras::TableBuilder;
@@ -218,8 +219,6 @@ impl eframe::App for XadreisGUI {
                     .body(|mut body| {
                         body.row(20.0, |mut row| {
                             row.col(|rui| { rui.label("Nodes"); });
-                            // TODO:
-                            //  - stop unwrap()'ing here, we could very easily crash
                             for i in 1..8 {
                                 if self.perft.is_some() {
                                     let count = self.perft.unwrap()[i];

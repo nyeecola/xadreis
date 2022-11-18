@@ -265,14 +265,15 @@ fn generate_bishop_attacks(game_state: &Box<GameState>, owner: Player, x: usize,
     let board = game_state.board;
 
     for o in 1..8 {
-        if y+o >= 7 || x+o >= 7 {
+        if y+o > 7 || x+o > 7 {
             break;
         }
         let target = board[y+o][x+o];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y+o,x+o), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
@@ -284,31 +285,34 @@ fn generate_bishop_attacks(game_state: &Box<GameState>, owner: Player, x: usize,
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y-o as usize, x-o as usize), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
     for o in 1..8 as isize {
-        if y + o as usize >= 7 || x as isize - o < 0 {
+        if y + o as usize > 7 || x as isize - o < 0 {
             break;
         }
         let target = board[y+o as usize][x-o as usize];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y+o as usize,x-o as usize), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
     for o in 1..8 as isize {
-        if y as isize - o < 0 || x as isize + o >= 7 {
+        if y as isize - o < 0 || x as isize + o > 7 {
             break;
         }
         let target = board[y-o as usize][x+o as usize];
         let target_owner = Player::try_from(target.get_owner()).unwrap();
         if target_owner != owner {
             moves.push(Move {from: (y,x), to: (y-o as usize,x+o as usize), side_effect: None})
-        } else {
+        }
+        if target_owner != Player::None {
             break;
         }
     }
@@ -742,7 +746,9 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     for mv in &moves {
         let mut tmp_game_state = game_state.clone();
         make_move(&mut tmp_game_state, *mv);
+        //println!("tmp_game_state\n{}", tmp_game_state);
         let tmp_attacks = generate_attacks(&tmp_game_state, tmp_game_state.player_to_move);
+        //println!("tmp_attacks\n{:?}", tmp_attacks);
         if !is_in_check(&tmp_game_state, game_state.player_to_move, tmp_attacks) {
             final_moves.push(*mv);
         }
@@ -751,8 +757,11 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     final_moves
 }
 
-// TODO: implement this for n > 1
 pub fn perft(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize) -> usize {
+    perft_imp(results, game_state, n, 1)
+}
+
+fn perft_imp(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize, level: usize) -> usize {
     if n == 0 {
         return 1;
     }
@@ -764,10 +773,14 @@ pub fn perft(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize) ->
     for mv in &moves {
         let mut tmp_game_state = game_state.clone();
         make_move(&mut tmp_game_state, *mv);
-        count += perft(results, &tmp_game_state, n - 1);
+        //println!("{}", tmp_game_state);
+        count += perft_imp(results, &tmp_game_state, n - 1, level + 1);
     }
 
-    results[n] = count as isize;
+    if results[level] == -1 {
+        results[level] = 0;
+    }
+    results[level] += moves.len() as isize;
 
     count
 }
