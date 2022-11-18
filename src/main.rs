@@ -738,6 +738,7 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     let mut final_moves = vec![];
 
     // remove moves that would leave the player in check
+    // TODO: optimize move undoing
     for mv in &moves {
         let mut tmp_game_state = game_state.clone();
         make_move(&mut tmp_game_state, *mv);
@@ -751,13 +752,24 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
 }
 
 // TODO: implement this for n > 1
-pub fn perft(game_state: &Box<GameState>, n: usize) -> usize {
-    generate_legal_moves(game_state).len()
-}
+pub fn perft(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize) -> usize {
+    if n == 0 {
+        return 1;
+    }
 
-// TODO: implement this for n > 1
-pub fn perft_moves(game_state: &Box<GameState>, n: usize) -> Vec<Move> {
-    generate_legal_moves(game_state)
+    let mut count = 0;
+    let moves = generate_legal_moves(game_state);
+
+    // TODO: optimize this
+    for mv in &moves {
+        let mut tmp_game_state = game_state.clone();
+        make_move(&mut tmp_game_state, *mv);
+        count += perft(results, &tmp_game_state, n - 1);
+    }
+
+    results[n] = count as isize;
+
+    count
 }
 
 fn main() {

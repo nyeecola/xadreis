@@ -1,8 +1,6 @@
-- fix bug where pawns can always move twice, instead of only when it is it's first move
-- test engine move generation with perft https://www.chessprogramming.org/Perft_Results
-  - implement perft(N) for N > 1
+- fix bugs revealed by perft()
+- optimize stuff
 - implement playing through the GUI
 - implement basic "random" engine
 - ???
 - play against engines listed here https://www.madchess.net/
-- optimize stuff

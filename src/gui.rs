@@ -1,6 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use crate::perft_moves;
 use crate::perft;
 use egui_extras::Size;
 use egui_extras::TableBuilder;
@@ -48,7 +47,7 @@ struct XadreisGUI {
     game_state: Option<Box<GameState>>,
     fen: String,
 
-    perft: Option<usize>,
+    perft: Option<[isize; 8]>,
 }
 
 impl XadreisGUI {
@@ -196,35 +195,44 @@ impl eframe::App for XadreisGUI {
                     // TODO:
                     //  - understand this & + as_ref() stuff
                     //  - stop unwrap()'ing here, we could very easily crash
-                    println!("Perft(0) moves: {:?}", perft_moves(&self.game_state.as_ref().unwrap(), 0));
-                    self.perft = Some(perft(&self.game_state.as_ref().unwrap(), 0));
+                    //println!("Perft(1) moves: {:?}", generate_legal_moves(&self.game_state.as_ref().unwrap()));
+                    let mut perft_results = [-1isize; 8];
+                    Some(perft(&mut perft_results, &self.game_state.as_ref().unwrap(), 3));
+                    self.perft = Some(perft_results);
                 }
 
                 let table = TableBuilder::new(top_ui)
                     .striped(true)
-                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .column(Size::initial(60.0).at_least(40.0))
-                    .column(Size::initial(60.0).at_least(40.0))
+                    .cell_layout(egui::Layout::right_to_left(egui::Align::Center))
+                    .columns(Size::initial(60.0).at_least(40.0), 7)
                     .column(Size::remainder().at_least(60.0))
                     .resizable(true);
 
                 table
                     .header(30.0, |mut header| {
-                        header.col(|hui| {hui.heading("FEN");});
-                        header.col(|hui| {hui.heading("Perft(1)");});
-                        header.col(|hui| {hui.heading("Perft(2)");});
+                        header.col(|hui| {hui.heading("");});
+                        for i in 1..8 {
+                            header.col(|hui| {hui.heading(format!("Perft({})", i));});
+                        }
                     })
                     .body(|mut body| {
                         body.row(20.0, |mut row| {
-                            row.col(|rui| { rui.label("AAAAAAAAAAAAAAA"); });
+                            row.col(|rui| { rui.label("Nodes"); });
                             // TODO:
                             //  - stop unwrap()'ing here, we could very easily crash
-                            if self.perft.is_some() {
-                                row.col(|rui| { rui.label(self.perft.unwrap().to_string()); });
-                            } else {
-                                row.col(|rui| { rui.label("??"); });
+                            for i in 1..8 {
+                                if self.perft.is_some() {
+                                    let count = self.perft.unwrap()[i];
+
+                                    if count != -1 {
+                                        row.col(|rui| { rui.label(count.to_string()); });
+                                    } else {
+                                        row.col(|rui| { rui.label("??"); });
+                                    }
+                                } else {
+                                    row.col(|rui| { rui.label("??"); });
+                                }
                             }
-                            row.col(|rui| { rui.label("??"); });
                         });
                     });
                 });
