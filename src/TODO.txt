@@ -1,3 +1,6 @@
+- implement win/draw/lose
+  - implement draw by repetition
+  - implement draw by 50-move rule
 - fix bugs revealed by perft()
   - en_passant might be broken
 - optimize stuff

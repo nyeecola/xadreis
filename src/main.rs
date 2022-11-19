@@ -609,6 +609,7 @@ fn generate_king_attacks(game_state: &Box<GameState>, owner: Player, x: isize, y
     moves
 }
 
+// TODO: optimize this
 fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: isize, is_in_check: bool) -> Vec<Move> {
     let mut moves = vec![];
 
@@ -622,16 +623,20 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                 if game_state.castling_rights.get_black_kingside() {
                     if PieceType::try_from(board[0][5].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[0][6].get_piece()).unwrap() == PieceType::None {
-                        moves.push(Move {from: (0,4), to: (0,6),
-                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,7)), to: Some((0,5))})});
+                        if is_move_valid(game_state, Move{from: (0,4), to: (0,5), side_effect: None}) {
+                            moves.push(Move {from: (0,4), to: (0,6),
+                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,7)), to: Some((0,5))})});
+                        }
                     }
                 }
                 if game_state.castling_rights.get_black_queenside() {
                     if PieceType::try_from(board[0][3].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[0][2].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[0][1].get_piece()).unwrap() == PieceType::None {
-                        moves.push(Move {from: (0,4), to: (0,2),
-                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,0)), to: Some((0,3))})});
+                        if is_move_valid(game_state, Move{from: (0,4), to: (0,3), side_effect: None}) {
+                            moves.push(Move {from: (0,4), to: (0,2),
+                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((0,0)), to: Some((0,3))})});
+                        }
                     }
                 }
             },
@@ -639,16 +644,20 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                 if game_state.castling_rights.get_white_kingside() {
                     if PieceType::try_from(board[7][5].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[7][6].get_piece()).unwrap() == PieceType::None {
-                        moves.push(Move {from: (7,4), to: (7,6),
-                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,5))})});
+                        if is_move_valid(game_state, Move{from: (7,4), to: (7,5), side_effect: None}) {
+                            moves.push(Move {from: (7,4), to: (7,6),
+                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,5))})});
+                        }
                     }
                 }
                 if game_state.castling_rights.get_white_queenside() {
                     if PieceType::try_from(board[7][3].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[7][2].get_piece()).unwrap() == PieceType::None &&
                         PieceType::try_from(board[7][1].get_piece()).unwrap() == PieceType::None {
-                        moves.push(Move {from: (7,4), to: (7,2),
-                                         side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,3))})});
+                        if is_move_valid(game_state, Move{from: (7,4), to: (7,3), side_effect: None}) {
+                            moves.push(Move {from: (7,4), to: (7,2),
+                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,3))})});
+                        }
                     }
                 }
             },
@@ -681,11 +690,13 @@ fn swap_player_turn(game_state: &mut Box<GameState>) {
 }
 
 fn make_move(game_state: &mut Box<GameState>, mv: Move) {
+    let moving_piece = PieceType::try_from(game_state.board[mv.from.0][mv.from.1].get_piece()).unwrap();
+    let target_piece = PieceType::try_from(game_state.board[mv.to.0][mv.to.1].get_piece()).unwrap();
+    let mut capture = target_piece != PieceType::None;
+
     let player = Player::try_from(game_state.board[mv.from.0][mv.from.1].get_owner()).unwrap();
     {
-        let piece = PieceType::try_from(game_state.board[mv.from.0][mv.from.1].get_piece()).unwrap();
-
-        game_state.set_piece_at(mv.to.0, mv.to.1, piece, player);
+        game_state.set_piece_at(mv.to.0, mv.to.1, moving_piece, player);
         game_state.set_piece_at(mv.from.0, mv.from.1, PieceType::None, Player::None);
     }
 
@@ -713,10 +724,55 @@ fn make_move(game_state: &mut Box<GameState>, mv: Move) {
                 let from = smv.from.unwrap();
 
                 game_state.set_piece_at(from.0, from.1, PieceType::None, Player::None);
+
+                capture = true;
             }
         };
-
     }
+
+    // TODO: check if these are working properly
+    game_state.en_passant_target = None;
+    if moving_piece == PieceType::Pawn {
+        if isize::abs(mv.to.0 as isize - mv.from.0 as isize) == 2 {
+            game_state.en_passant_target = Some((mv.to.0 as u8, mv.to.1 as u8));
+        }
+    } else if moving_piece == PieceType::King {
+        match game_state.player_to_move {
+            Player::Black => {
+                game_state.castling_rights.set_black_kingside(false);
+                game_state.castling_rights.set_black_queenside(false);
+            },
+            Player::White => {
+                game_state.castling_rights.set_white_kingside(false);
+                game_state.castling_rights.set_white_queenside(false);
+            },
+            Player::None => { panic!("Invalid player_to_move"); }
+        }
+    } else if moving_piece == PieceType::Rook {
+        match game_state.player_to_move {
+            Player::Black => {
+                if mv.from == (0,0) {
+                    game_state.castling_rights.set_black_queenside(false);
+                } else if mv.from == (0,7) {
+                    game_state.castling_rights.set_black_kingside(false);
+                }
+            },
+            Player::White => {
+                if mv.from == (7,0) {
+                    game_state.castling_rights.set_white_queenside(false);
+                } else if mv.from == (7,7) {
+                    game_state.castling_rights.set_white_kingside(false);
+                }
+            },
+            Player::None => { panic!("Invalid player_to_move"); }
+        }
+    }
+    if capture {
+        game_state.halfmove_counter = 0;
+    } else {
+        game_state.halfmove_counter += 1;
+    };
+    game_state.fullmove_counter += 1;
 
     swap_player_turn(game_state);
 }
@@ -777,6 +833,19 @@ fn generate_attacks(game_state: &Box<GameState>, player: Player) -> Vec<Move> {
     attacks
 }
 
+// TODO: optimize move undoing
+fn is_move_valid(game_state: &Box<GameState>, mv: Move) -> bool {
+    let moving_player = game_state.player_to_move;
+    let mut tmp_game_state = game_state.clone();
+
+    make_move(&mut tmp_game_state, mv);
+    //println!("tmp_game_state\n{}", tmp_game_state);
+    let tmp_attacks = generate_attacks(&tmp_game_state, tmp_game_state.player_to_move);
+    
+    //println!("tmp_attacks\n{:?}", tmp_attacks);
+    !is_in_check(&tmp_game_state, moving_player, tmp_attacks)
+}
+
 // TODO: measure this and make it faster
 // TODO: optimize this
 fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
@@ -828,14 +897,8 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
     let mut final_moves = vec![];
 
     // remove moves that would leave the player in check
-    // TODO: optimize move undoing
     for mv in &moves {
-        let mut tmp_game_state = game_state.clone();
-        make_move(&mut tmp_game_state, *mv);
-        //println!("tmp_game_state\n{}", tmp_game_state);
-        let tmp_attacks = generate_attacks(&tmp_game_state, tmp_game_state.player_to_move);
-        //println!("tmp_attacks\n{:?}", tmp_attacks);
-        if !is_in_check(&tmp_game_state, game_state.player_to_move, tmp_attacks) {
+        if is_move_valid(&game_state, *mv) {
             final_moves.push(*mv);
         }
     }
