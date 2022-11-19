@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use crate::perft_divide;
 use crate::make_move;
 use crate::generate_legal_moves;
 use crate::perft;
@@ -199,15 +200,15 @@ impl eframe::App for XadreisGUI {
                     //  - stop unwrap()'ing here, we could very easily crash
                     let moves = generate_legal_moves(&self.game_state.as_ref().unwrap());
                     println!("Perft(1) moves: {:?}", moves);
-                    for mv in &moves {
-                        let mut tmp_game = self.game_state.as_ref().unwrap().clone();
-                        make_move(&mut tmp_game, *mv);
-                        println!("{}", tmp_game);
-                        println!("Perft moves: {:?}", generate_legal_moves(&tmp_game));
-                    }
+                    // for mv in &moves {
+                    //     let mut tmp_game = self.game_state.as_ref().unwrap().clone();
+                    //     make_move(&mut tmp_game, *mv);
+                    //     println!("{}", tmp_game);
+                    //     println!("Perft moves: {:?}", generate_legal_moves(&tmp_game));
+                    // }
 
                     let mut perft_results = [-1isize; 8];
-                    Some(perft(&mut perft_results, &self.game_state.as_ref().unwrap(), 3));
+                    Some(perft_divide(&mut perft_results, &self.game_state.as_ref().unwrap(), 3));
                     self.perft = Some(perft_results);
                 }
 

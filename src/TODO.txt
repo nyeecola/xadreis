@@ -2,8 +2,9 @@
   - implement draw by repetition
   - implement draw by 50-move rule
 - fix bugs revealed by perft()
-  - en_passant might be broken
+  - currently none known
 - optimize stuff
+  - start with perft!
 - implement playing through the GUI
 - implement basic "random" engine
 - ???

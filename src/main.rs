@@ -438,8 +438,8 @@ fn generate_pawn_moves(game_state: &Box<GameState>, player: Player, x: usize, y:
         if target_owner == Player::None {
             let mut mv = Move {from: (y,x), to: (o as usize, x), side_effect: None};
             if i == 1 {
-                if (player == Player::White && y == 0) ||
-                   (player == Player::Black && y == 7) {
+                if (player == Player::White && o == 0) ||
+                   (player == Player::Black && o == 7) {
                     for pt in PieceType::iterator() {
                         mv.side_effect = Some(MoveSideEffect{effect_type: MoveSideEffectType::AddPiece,
                                                              new_piece_type: Some(pt), from: None,
@@ -656,7 +656,7 @@ fn generate_king_moves(game_state: &Box<GameState>, owner: Player, x: isize, y: 
                         PieceType::try_from(board[7][1].get_piece()).unwrap() == PieceType::None {
                         if is_move_valid(game_state, Move{from: (7,4), to: (7,3), side_effect: None}) {
                             moves.push(Move {from: (7,4), to: (7,2),
-                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,7)), to: Some((7,3))})});
+                                             side_effect: Some(MoveSideEffect{effect_type: MoveSideEffectType::MovePiece, new_piece_type: None, from: Some((7,0)), to: Some((7,3))})});
                         }
                     }
                 }
@@ -767,6 +767,26 @@ fn make_move(game_state: &mut Box<GameState>, mv: Move) {
             Player::None => { panic!("Invalid player_to_move"); }
         }
     }
+    if target_piece == PieceType::Rook {
+        match game_state.player_to_move {
+            Player::Black => {
+                if mv.to == (7,0) {
+                    game_state.castling_rights.set_white_queenside(false);
+                } else if mv.to == (7,7) {
+                    game_state.castling_rights.set_white_kingside(false);
+                }
+            },
+            Player::White => {
+                if mv.to == (0,0) {
+                    game_state.castling_rights.set_black_queenside(false);
+                } else if mv.to == (0,7) {
+                    game_state.castling_rights.set_black_kingside(false);
+                }
+            },
+            Player::None => { panic!("Invalid player_to_move"); }
+        }
+    }
+
     if capture {
         game_state.halfmove_counter = 0;
     } else {
@@ -907,10 +927,14 @@ fn generate_legal_moves(game_state: &Box<GameState>) -> Vec<Move> {
 }
 
 pub fn perft(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize) -> usize {
-    perft_imp(results, game_state, n, 1)
+    perft_imp(results, game_state, n, 1, false)
 }
 
-fn perft_imp(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize, level: usize) -> usize {
+pub fn perft_divide(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize) -> usize {
+    perft_imp(results, game_state, n, 1, true)
+}
+
+fn perft_imp(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize, level: usize, divide: bool) -> usize {
     if n == 0 {
         return 1;
     }
@@ -923,7 +947,9 @@ fn perft_imp(results: &mut [isize; 8], game_state: &Box<GameState>, n: usize, le
         let mut tmp_game_state = game_state.clone();
         make_move(&mut tmp_game_state, *mv);
         //println!("{}", tmp_game_state);
-        count += perft_imp(results, &tmp_game_state, n - 1, level + 1);
+        let nodes = perft_imp(results, &tmp_game_state, n - 1, level + 1, divide);
+        if level == 1 && divide { println!("{:?} {}", mv, nodes); }
+        count += nodes;
     }
 
     if results[level] == -1 {
